@@ -1,5 +1,11 @@
 # Changelog - Scavenger (formerly Scavenge Timer)
 
+## 0.9.0
+- Your state affects Scavenging like the game's own skills: being drunk gives up to +100% XP but lowers the Scavenger instinct chance; mushrooms change your effective level, with the game's formulas.
+- The Drinking skill shrinks the drunk instinct penalty (-8% per level, down to 20%).
+- Container difficulty (on by default): dumpsters and other big trash give more XP, small trash cans less.
+- XP notifications show what changed the XP.
+
 ## 0.8.2
 - Fixed: opening a trash container gave no XP. XP is now given when the container's panel actually opens (locked containers still don't count).
 

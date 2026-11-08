@@ -1,6 +1,6 @@
 # Obenseuer - Scavenger
 
-Version 0.8.2 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search the city's trash to level it up, and the higher your level, the more, and better, stuff you find in it.
+Version 0.9.0 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search the city's trash to level it up, and the higher your level, the more, and better, stuff you find in it.
 
 ## How it works
 
@@ -8,6 +8,26 @@ Version 0.8.2 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search
 - Like the game's skills, Scavenging starts unlearned and hidden. The first trash container you search shows the game's "New skill learned!" popup, and **Scavenging appears on the Character tab** with the game's other skills: same card, level, XP and 10-segment bar. Each level is 1000 XP, up to level 10.
 - XP gains show the game's "Skill increased!" notification, and level-ups its "Scavenging increased to level N!" popup.
 - **Scavenger instinct**: every time you search a trash container for the first time that day, you have a chance to dig deeper and find extra items in it. The extra items appear right in the container you opened.
+
+## Your state, like the game's skills
+
+Scavenging reacts to your state the same way the game's own skills do. Like in the game, only alcohol and mushrooms matter; hunger, thirst, sleep and health don't.
+
+- **Drunk: more XP, worse finds.** In the game, alcohol raises the fail chance, and a higher fail chance gives more skill XP. Here, XP grows with alcohol in blood, up to **+100%** when completely drunk, while the Scavenger instinct chance drops (you miss things).
+- **Drinking skill helps.** Your Drinking skill makes the instinct penalty smaller: -8% per Drinking level, down to 20% of the penalty at Drinking 10 (the same numbers the game uses for how much a drink affects you). The XP bonus stays.
+- **Mushrooms change your effective level** for instinct, with the game's own formula: (level + high / 10) × (1 − SMV progression / 200). The Character tab keeps showing your real level.
+
+## Container difficulty
+
+Bigger or messier trash teaches you more (on by default, `ContainerDifficulty`):
+
+| Container | XP |
+|---|---|
+| Dumpster, trash bale, machine-shop trash, mine crate sacks | 25 (+25%) |
+| Trash bin, crate sack, general trash | 20 |
+| Small trash can, organic trash | 15 (−25%) |
+
+XP notifications say what changed it, for example "Scavenging (+25% dumpster, drunk +40%)".
 
 ## What levels give
 
@@ -35,6 +55,13 @@ Config file: `BepInEx/config/JuanBerta.Obenseuer.Scavenger.cfg`
 | Instinct: ChanceAtLevel1 / ChancePerLevel | 0.05 / 0.05 | Chance of an extra find |
 | Instinct: RareChanceAtLevel1 / RareChancePerLevel | 0.2 / 0.04 | Rare-pool chance of extra finds |
 | Instinct: MultiAmountChanceAtLevel1 / MultiAmountChancePerLevel | 0.2 / 0.03 | Chance an extra find is a stack |
+| State: StateAffectsSkill | true | Alcohol and mushrooms affect the skill |
+| State: MaxDrunkXpBonus | 1 | Extra XP when drunk (1 = up to +100%) |
+| State: DrunkLowersInstinct | true | Being drunk lowers the instinct chance |
+| State: DrinkingSkillHelps | true | Drinking skill shrinks the drunk instinct penalty |
+| State: MushroomsAffectLevel | true | Mushrooms change your effective level for instinct |
+| Difficulty: ContainerDifficulty | true | XP depends on the kind of trash |
+| Difficulty: DifficultyFactors | Dumpster:1.25,...,Trashcan:0.75 | XP multiplier per container category |
 
 ## Upgrading from Scavenge Timer
 

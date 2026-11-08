@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 
 namespace ScavengeTimerMod
 {
-	[BepInPlugin("JuanBerta.Obenseuer.Scavenger", "Scavenger", "0.8.2")]
+	[BepInPlugin("JuanBerta.Obenseuer.Scavenger", "Scavenger", "0.9.0")]
 	public class ScavengerPlugin : BaseUnityPlugin
 	{
 		private static ScavengerPlugin instance;

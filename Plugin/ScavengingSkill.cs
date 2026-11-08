@@ -26,6 +26,14 @@ namespace ScavengeTimerMod
 		internal static ConfigEntry<float> MultiBase;
 		internal static ConfigEntry<float> MultiPerLevel;
 		internal static ConfigEntry<string> TrashCategories;
+		internal static ConfigEntry<bool> StateAffectsSkill;
+		internal static ConfigEntry<float> MaxDrunkXpBonus;
+		internal static ConfigEntry<bool> DrunkLowersInstinct;
+		internal static ConfigEntry<bool> MushroomsAffectLevel;
+		internal static ConfigEntry<bool> DrinkingSkillHelps;
+		internal static ConfigEntry<bool> ContainerDifficulty;
+		internal static ConfigEntry<string> DifficultyFactors;
+		private static Dictionary<string, float> difficulty;
 
 		private static HashSet<string> trashSet;
 		private static readonly HashSet<string> loggedCategories = new HashSet<string>();
@@ -46,6 +54,24 @@ namespace ScavengeTimerMod
 				"Dumpster,TrashBin,Trashcan,Trash,Trash Machineshop,Trash Organic,TrashBale,CrateSack,CrateSackMines",
 				"Container spawn categories that count as trash.");
 			TrashCategories.SettingChanged += (s, e) => trashSet = null;
+
+			StateAffectsSkill = cfg.Bind("State", "StateAffectsSkill", true,
+				"Your state affects Scavenging the way it affects the game's own skills: alcohol and mushrooms. Hunger, thirst, sleep and health don't, as in the game.");
+			MaxDrunkXpBonus = cfg.Bind("State", "MaxDrunkXpBonus", 1f, new ConfigDescription(
+				"Extra XP when drunk, scaled by alcohol in blood (1 = up to +100% when completely drunk). In the game, alcohol raises the fail chance, and a higher fail chance gives more skill XP.",
+				new AcceptableValueRange<float>(0f, 3f)));
+			DrunkLowersInstinct = cfg.Bind("State", "DrunkLowersInstinct", true,
+				"Being drunk lowers the Scavenger instinct chance (you miss things), like alcohol lowers the game's success chances.");
+			DrinkingSkillHelps = cfg.Bind("State", "DrinkingSkillHelps", true,
+				"Your Drinking skill makes the drunk instinct penalty smaller: -8% per Drinking level, down to 20% of the penalty (same numbers the game uses for how much a drink affects you).");
+			MushroomsAffectLevel = cfg.Bind("State", "MushroomsAffectLevel", true,
+				"Mushroom effects change your effective Scavenging level for instinct, using the game's own formula for skills.");
+			ContainerDifficulty = cfg.Bind("Difficulty", "ContainerDifficulty", true,
+				"Bigger or messier trash gives more XP, smaller trash less (see DifficultyFactors).");
+			DifficultyFactors = cfg.Bind("Difficulty", "DifficultyFactors",
+				"Dumpster:1.25,TrashBale:1.25,Trash Machineshop:1.25,CrateSackMines:1.25,CrateSack:1,TrashBin:1,Trash:1,Trashcan:0.75,Trash Organic:0.75",
+				"XP multiplier per container category, as Category:factor pairs. Categories not listed use 1.");
+			DifficultyFactors.SettingChanged += (s, e) => difficulty = null;
 		}
 
 		// ---- XP and levels --------------------------------------------------------------------
@@ -68,7 +94,9 @@ namespace ScavengeTimerMod
 			get { return Enabled.Value ? Mathf.FloorToInt(SkillValue) : 0; }
 		}
 
-		internal static void AddXp(float amount)
+		internal static void AddXp(float amount) { AddXp(amount, null); }
+
+		internal static void AddXp(float amount, string note)
 		{
 			if (!Enabled.Value || amount <= 0f || ScavengerPlugin.Stash == null || SkillValue >= MaxLevel) return;
 			bool wasLearned = Learned;
@@ -77,17 +105,92 @@ namespace ScavengeTimerMod
 			int after = Level;
 			if (!wasLearned) GameUI.ShowNewSkill();
 			else if (after > before) GameUI.ShowLevelUp(after);
-			else if (ShowXpNotifications.Value) ScavengerPlugin.Notify("Skill increased!", "Scavenging");
+			else if (ShowXpNotifications.Value) ScavengerPlugin.Notify("Skill increased!", string.IsNullOrEmpty(note) ? "Scavenging" : "Scavenging (" + note + ")");
 		}
 
-		// ---- Level bonuses (Scavenger instinct) ----------------------------------------------------
+		// ---- Character state (same inputs the game uses for its skills) ------------------------------
 
-		private static int Above1 { get { return Mathf.Max(0, Level - 1); } }
-		internal static float ProcChance { get { return Mathf.Clamp(ProcBase.Value + ProcPerLevel.Value * Above1, 0f, 0.6f); } }
+		// Alcohol in blood, 0 to 100.
+		internal static float Alcohol
+		{
+			get
+			{
+				if (!StateAffectsSkill.Value || PlayerStats.instance == null || PlayerStats.instance.alcohol == null) return 0f;
+				return Mathf.Clamp(PlayerStats.instance.alcohol.AlcoholInBlood, 0f, 100f);
+			}
+		}
+
+		// Recipe.CurrentFailChance multiplies the chance of success by (1 - alcohol / 100).
+		internal static float Sober { get { return 1f - Alcohol / 100f; } }
+
+		internal static int DrinkingLevel
+		{
+			get
+			{
+				try { return PlayerStats.instance != null ? PlayerStats.instance.GetSkill(PlayerStats.PlayerSkillType.Drinking) : 0; }
+				catch (Exception) { return 0; }
+			}
+		}
+
+		// PlayerStatsAlcohol.SetAlcohol: a drink's effect is scaled by 1 - Drinking * 0.08, never below 0.2.
+		internal static float DrinkingTolerance
+		{
+			get { return DrinkingSkillHelps.Value ? Mathf.Clamp(1f - DrinkingLevel * 0.08f, 0.2f, 1f) : 1f; }
+		}
+
+		// What's left of the instinct chance after alcohol: the penalty shrinks with the Drinking skill.
+		internal static float InstinctSober { get { return 1f - (Alcohol / 100f) * DrinkingTolerance; } }
+
+		// PlayerStats.GetSkillWithEffects: (skill + MushroomsHigh / 10) * (1 - SMVProgression / 200), clamped.
+		internal static float EffectiveLevel
+		{
+			get
+			{
+				float level = Level;
+				if (StateAffectsSkill.Value && MushroomsAffectLevel.Value && PlayerStats.instance != null && PlayerStats.instance.mushrooms != null)
+				{
+					var m = PlayerStats.instance.mushrooms;
+					level = (level + m.MushroomsHigh / 10f) * (1f - m.SMVProgression / 200f);
+				}
+				return Mathf.Clamp(level, 0f, MaxLevel);
+			}
+		}
+
+		internal static float DrunkXpMultiplier { get { return 1f + MaxDrunkXpBonus.Value * Alcohol / 100f; } }
+
+		internal static float DifficultyFactor(string category)
+		{
+			if (!ContainerDifficulty.Value || string.IsNullOrEmpty(category)) return 1f;
+			if (difficulty == null)
+			{
+				difficulty = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+				foreach (string pair in DifficultyFactors.Value.Split(','))
+				{
+					int i = pair.LastIndexOf(':');
+					float f;
+					if (i > 0 && float.TryParse(pair.Substring(i + 1).Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f))
+						difficulty[pair.Substring(0, i).Trim()] = Mathf.Max(0f, f);
+				}
+			}
+			float v;
+			return difficulty.TryGetValue(category.Trim(), out v) ? v : 1f;
+		}
+
+		// ---- Level bonuses (Scavenger instinct), from the effective level ------------------------------
+
+		private static float Above1 { get { return Mathf.Max(0f, EffectiveLevel - 1f); } }
+		internal static float ProcChance
+		{
+			get
+			{
+				float chance = Mathf.Clamp(ProcBase.Value + ProcPerLevel.Value * Above1, 0f, 0.6f);
+				return DrunkLowersInstinct.Value ? chance * InstinctSober : chance;
+			}
+		}
 		internal static float RareChance { get { return Mathf.Clamp(RareBase.Value + RarePerLevel.Value * Above1, 0f, 0.75f); } }
 		internal static float MultiChance { get { return Mathf.Clamp(MultiBase.Value + MultiPerLevel.Value * Above1, 0f, 0.8f); } }
-		internal static int MaxFinds { get { return 1 + Level / 4; } }              // up to 1 extra find, 2 at level 4, 3 at level 8
-		internal static int MaxAmountPerFind { get { return 3 + Level / 5; } }      // stacks of up to 3, 4 at level 5, 5 at level 10
+		internal static int MaxFinds { get { return 1 + Mathf.FloorToInt(EffectiveLevel) / 4; } }              // up to 1 extra find, 2 at level 4, 3 at level 8
+		internal static int MaxAmountPerFind { get { return 3 + Mathf.FloorToInt(EffectiveLevel) / 5; } }      // stacks of up to 3, 4 at level 5, 5 at level 10
 
 		internal static bool IsTrash(string category)
 		{
@@ -112,11 +215,17 @@ namespace ScavengeTimerMod
 			string key = string.IsNullOrEmpty(storage.GUID) ? storage.gameObject.scene.name + "@" + storage.transform.position.ToString("F1") : storage.GUID;
 			if (!ScavengerPlugin.Stash.MarkSearched(key)) return;   // already searched today
 
-			if (UnityEngine.Random.value < ProcChance) Instinct(storage);
-			AddXp(XpPerTrashContainer.Value);
+			bool high = StateAffectsSkill.Value && MushroomsAffectLevel.Value && Mathf.Abs(EffectiveLevel - Level) >= 0.5f;
+			if (UnityEngine.Random.value < ProcChance) Instinct(storage, high);
+
+			float diff = DifficultyFactor(cat), drunk = DrunkXpMultiplier;
+			var notes = new List<string>();
+			if (Mathf.Abs(diff - 1f) > 0.01f) notes.Add((diff > 1f ? "+" : "") + Mathf.RoundToInt((diff - 1f) * 100f) + "% " + cat.ToLowerInvariant());
+			if (drunk > 1.01f) notes.Add("drunk +" + Mathf.RoundToInt((drunk - 1f) * 100f) + "%");
+			AddXp(XpPerTrashContainer.Value * diff * drunk, string.Join(", ", notes.ToArray()));
 		}
 
-		private static void Instinct(Storage storage)
+		private static void Instinct(Storage storage, bool affectedByMushrooms)
 		{
 			if (StorageSpawnCategoryDatabase.instance == null) return;
 			StorageSpawnCategory cat = StorageSpawnCategoryDatabase.instance.FetchStorageSpawnCategory(storage.itemSpawnCategory);
@@ -142,7 +251,7 @@ namespace ScavengeTimerMod
 					Inventory.instance.storagePanelUI.UpdateStoragePanelUI(storage);
 			}
 			catch (Exception) { }
-			ScavengerPlugin.Notify("Scavenger instinct!", "You dig deeper and find: " + string.Join(", ", names.ToArray()));
+			ScavengerPlugin.Notify("Scavenger instinct!", (affectedByMushrooms ? "With your mind wide open, you" : "You") + " dig deeper and find: " + string.Join(", ", names.ToArray()));
 		}
 
 		// The game's own skill UI: the Character tab card and the level-up popup.
