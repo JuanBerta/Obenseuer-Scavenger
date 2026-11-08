@@ -1,6 +1,6 @@
-# Obenseuer - Scavenge Timer
+# Obenseuer - Scavenger
 
-Version 0.5.3. Adds a scavenging mode to the game's own time picker (WaitingUI), a stash to collect what you find, and loot from container spawns.
+Version 0.6.0 (formerly **Scavenge Timer**). Adds a scavenging mode to the game's own time picker (WaitingUI), a stash to collect what you find, loot from container spawns, and a **Scavenging skill** that levels up as you scavenge.
 
 ## How to use
 
@@ -17,6 +17,22 @@ Version 0.5.3. Adds a scavenging mode to the game's own time picker (WaitingUI),
 - The stash resets at the start of each in-game day. A scavenge that crosses midnight keeps its items.
 - The stash is saved next to the save files, so it survives quitting the game during the same day.
 
+## Scavenging skill
+
+You gain Scavenging XP by:
+
+- **Timed scavenging**: XP per hour (`XpPerHour`) and per item found (`XpPerItem`).
+- **Digging through real trash**: the first time each day you open a trash container (dumpster, trash bin, trash can, crate sack...), and every time you pick up an item from a trash pile.
+
+Higher levels give:
+
+- **More items** per hour of timed scavenging (+5% per level).
+- **Better items**: a higher chance of the rare pool (+1.5% per level, up to 75%).
+- **Bigger finds**: more multi-item finds (+1% per level) and, from level 10, larger stacks.
+- **Scavenger instinct**: while searching trash in the world, a chance to find something extra (5% at level 1, +2% per level, up to 60%). Extra items appear in the container you opened, or in your inventory when you pick up from a trash pile.
+
+The level and XP are shown in the time picker header ("Scavenging (Lv 4)"), in the stash title, and after each scavenge. Levels go up to `MaxLevel` (default 20); level L to L+1 needs `40 × L^1.6` XP. XP is saved in your save game with the stash.
+
 ## Loot
 
 Items come from the container categories in `Categories` (config). They are the same data as the viewer's container spawns page. Each find rolls one category at random, then one item from its common pool, or its rare pool with probability `RareChance`.
@@ -25,7 +41,7 @@ Some finds are tenement upgrade materials (`TenementChance`, default 30%). These
 
 ## Config
 
-Config file: `BepInEx/config/JuanBerta.Obenseuer.ScavengeTimer.cfg`
+Config file: `BepInEx/config/JuanBerta.Obenseuer.Scavenger.cfg` (settings from the old `JuanBerta.Obenseuer.ScavengeTimer.cfg` are imported on first start).
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -39,6 +55,16 @@ Config file: `BepInEx/config/JuanBerta.Obenseuer.ScavengeTimer.cfg`
 | MultiAmountChance | 0.3 | Chance that a find gives several of the same item |
 | MaxAmountPerFind | 3 | Largest amount of one item a single find can give (2-10) |
 | TenementItemIds | (38 item IDs) | Item IDs of tenement upgrade materials |
+| Skill: Enabled | true | Turn the Scavenging skill on or off |
+| Skill: MaxLevel | 20 | Highest level |
+| Skill: XpMultiplier | 1 | Multiplies all Scavenging XP |
+| Skill: XpPerHour / XpPerItem | 8 / 2 | XP from timed scavenging |
+| Skill: XpPerTrashContainer / XpPerTrashPickup | 5 / 2 | XP from searching trash in the world |
+| Skill: ItemsPerHourBonusPerLevel | 0.05 | Extra items per hour per level |
+| Skill: RareChanceBonusPerLevel | 0.015 | Added rare chance per level |
+| Skill: MultiAmountBonusPerLevel | 0.01 | Added multi-item chance per level |
+| Skill: TrashProcChance / TrashProcChancePerLevel | 0.05 / 0.02 | Chance of an extra find in trash |
+| Skill: TrashCategories | Dumpster,TrashBin,Trashcan,... | Categories that count as trash |
 
 ## Known limits
 
@@ -46,6 +72,10 @@ Config file: `BepInEx/config/JuanBerta.Obenseuer.ScavengeTimer.cfg`
 - Shift+[ and Shift+] are US-layout keys. On other layouts, change `PreviousPageKey` and `NextPageKey` in the source.
 - The picker's sleep button keeps the game's "Sleep" text. Only the header says "Scavenging". Renaming the button made its icon overlap the text.
 - The stash UI uses IMGUI (not native game UI), because no native list was found.
+
+## Upgrading from Scavenge Timer
+
+Delete `BepInEx/plugins/Obenseuer-ScavengeTimer` (or its DLL) before installing `Obenseuer-Scavenger.dll`, so the two don't run together. Your settings and today's stash carry over.
 
 ## Build
 

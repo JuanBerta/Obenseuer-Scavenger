@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Unity.Mono;
@@ -12,8 +13,8 @@ using UnityEngine.SceneManagement;
 
 namespace ScavengeTimerMod
 {
-	[BepInPlugin("JuanBerta.Obenseuer.ScavengeTimer", "Scavenge Timer", "0.5.3")]
-	public class ScavengeTimerPlugin : BaseUnityPlugin
+	[BepInPlugin("JuanBerta.Obenseuer.Scavenger", "Scavenger", "0.6.0")]
+	public class ScavengerPlugin : BaseUnityPlugin
 	{
 		private const float DefaultScavengeSeconds = 3600f;
 		private const int StashBaseCapacity = 30;
@@ -34,7 +35,8 @@ namespace ScavengeTimerMod
 		internal static ConfigEntry<int> MaxAmountPerFind;
 		internal static ConfigEntry<string> TenementItemIds;
 
-		private static ScavengeTimerPlugin instance;
+		private static ScavengerPlugin instance;
+		internal static ScavengeStorage Stash { get { return stash; } }
 		private static ScavengeStorage stash;
 		private static bool pickerOpen;
 		private static bool scavenging;
@@ -45,6 +47,7 @@ namespace ScavengeTimerMod
 		private void Awake()
 		{
 			instance = this;
+			MigrateOldConfig();
 			OpenKey = Config.Bind("General", "OpenKey", new KeyboardShortcut(KeyCode.F8),
 				"Opens the game's time picker in scavenge mode. Press again to close it.");
 			StashKey = Config.Bind("General", "StashKey", new KeyboardShortcut(KeyCode.F9),
@@ -70,13 +73,33 @@ namespace ScavengeTimerMod
 			TenementItemIds = Config.Bind("Loot", "TenementItemIds", DefaultTenementItemIds,
 				"Item IDs used in tenement upgrades (from the viewer's data/tenement.json), comma separated.");
 
+			ScavengingSkill.Bind(Config);
+
 			SceneManager.sceneLoaded += OnSceneLoaded;
 			EnsureStashExists();
 
 			Harmony.CreateAndPatchAll(typeof(GameHooks));
+			Harmony.CreateAndPatchAll(typeof(ScavengingSkill.Hooks));
 			TimeOfDayAzure.DayChanged += OnDayChanged;
 			SaveController.LoadingDone += OnGameLoaded;
-			Logger.LogInfo("Scavenge Timer loaded.");
+			Logger.LogInfo("Scavenger loaded.");
+		}
+
+		// The mod used to be "Scavenge Timer". Keep the player's settings when upgrading.
+		private void MigrateOldConfig()
+		{
+			try
+			{
+				string newPath = Config.ConfigFilePath;
+				string oldPath = Path.Combine(Path.GetDirectoryName(newPath), "JuanBerta.Obenseuer.ScavengeTimer.cfg");
+				if (!File.Exists(newPath) && File.Exists(oldPath))
+				{
+					File.Copy(oldPath, newPath);
+					Config.Reload();
+					Logger.LogInfo("Imported settings from Scavenge Timer.");
+				}
+			}
+			catch (Exception e) { Logger.LogWarning("Could not import Scavenge Timer settings: " + e.Message); }
 		}
 
 		private void OnDestroy()
@@ -221,7 +244,7 @@ namespace ScavengeTimerMod
 		{
 			scavenging = false;
 			float hours = secondsWaited / 3600f;
-			float expected = hours * ItemsPerHour.Value;
+			float expected = hours * ItemsPerHour.Value * ScavengingSkill.ItemsPerHourMultiplier;
 			int rolls = Mathf.FloorToInt(expected);
 			if (UnityEngine.Random.value < expected - rolls)
 			{
@@ -247,25 +270,28 @@ namespace ScavengeTimerMod
 				else if (categories.Count > 0)
 				{
 					StorageSpawnCategory category = categories[UnityEngine.Random.Range(0, categories.Count)];
-					item = category.GetRandomItem(RareChance.Value);
+					item = category.GetRandomItem(ScavengingSkill.RareChance(RareChance.Value));
 				}
 				if (item == null)
 				{
 					continue;
 				}
 				int amount = 1;
-				if (UnityEngine.Random.value < MultiAmountChance.Value)
+				if (UnityEngine.Random.value < ScavengingSkill.MultiChance(MultiAmountChance.Value))
 				{
-					amount = UnityEngine.Random.Range(2, MaxAmountPerFind.Value + 1);
+					amount = UnityEngine.Random.Range(2, MaxAmountPerFind.Value + ScavengingSkill.ExtraMaxAmount + 1);
 				}
 				stash.AddItems(item.ID, amount, item.Stackable);
 				found += amount;
 			}
 
+			ScavengingSkill.AddXp(hours * ScavengingSkill.XpPerHour.Value + found * ScavengingSkill.XpPerItem.Value, "timed scavenge");
+
 			string timeText = (secondsWaited / 60).ToString(CultureInfo.InvariantCulture) + " min";
+			string skill = ScavengingSkill.Enabled.Value ? " " + ScavengingSkill.ShortStatus() + "." : "";
 			Notify(found > 0
-				? "Scavenging finished after " + timeText + ". Found " + found + " item(s). Take them from the stash (F9)."
-				: "Scavenging finished after " + timeText + ". Found nothing this time.");
+				? "Scavenging finished after " + timeText + ". Found " + found + " item(s). Take them from the stash (F9)." + skill
+				: "Scavenging finished after " + timeText + ". Found nothing this time." + skill);
 
 			OpenStash();
 		}
@@ -332,6 +358,7 @@ namespace ScavengeTimerMod
 				CloseStash();
 			}
 			stash.ClearAll();
+			stash.ClearSearched();
 			stash.dayKey = CurrentDayKey();
 		}
 
@@ -342,6 +369,7 @@ namespace ScavengeTimerMod
 			if (stash.dayKey != CurrentDayKey())
 			{
 				stash.ClearAll();
+				stash.ClearSearched();
 				stash.dayKey = CurrentDayKey();
 			}
 		}
@@ -542,7 +570,8 @@ namespace ScavengeTimerMod
 
 		private static void UpdateTitle()
 		{
-			stash.title = "Scavenge stash — Page " + (stash.CurrentPage + 1) + "/" + stash.TotalPages;
+			string skill = ScavengingSkill.Enabled.Value ? " — " + ScavengingSkill.ShortStatus() : "";
+			stash.title = "Scavenge stash — Page " + (stash.CurrentPage + 1) + "/" + stash.TotalPages + skill;
 			if (Inventory.instance != null && Inventory.instance.storagePanelUI != null)
 			{
 				Inventory.instance.storagePanelUI.UpdateStoragePanelUI(stash);
@@ -582,7 +611,12 @@ namespace ScavengeTimerMod
 			}
 		}
 
-		private static void Notify(string text)
+		internal static void LogWarning(string text)
+		{
+			if (instance != null) instance.Logger.LogWarning(text);
+		}
+
+		internal static void Notify(string text)
 		{
 			if (Notifications.instance != null)
 			{
@@ -632,7 +666,7 @@ namespace ScavengeTimerMod
 			{
 				if (pickerOpen || scavenging)
 				{
-					__result = "Scavenging";
+					__result = ScavengingSkill.Enabled.Value ? "Scavenging (Lv " + ScavengingSkill.Level + ")" : "Scavenging";
 				}
 			}
 

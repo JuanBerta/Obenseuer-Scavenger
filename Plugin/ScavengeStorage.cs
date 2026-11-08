@@ -36,6 +36,23 @@ namespace ScavengeTimerMod
 		// The in-game day this stash belongs to. Saved with the stash, so a save from another day is cleared.
 		public string dayKey = "";
 
+		// Scavenging skill XP. Saved with the stash, never cleared.
+		public float skillXp = 0f;
+
+		// Trash containers already searched today ("|"-separated keys), so each gives XP once a day.
+		public string searchedToday = "";
+
+		public bool MarkSearched(string key)
+		{
+			string token = "|" + key + "|";
+			if (searchedToday.Contains(token)) return false;
+			if (searchedToday.Length > 60000) searchedToday = "";
+			searchedToday = (searchedToday.Length == 0 ? "|" : searchedToday) + key + "|";
+			return true;
+		}
+
+		public void ClearSearched() { searchedToday = ""; }
+
 		public void Setup(int baseCapacity, int pageSize)
 		{
 			GUID = StashGUID;

@@ -6,7 +6,7 @@
     <ProjectGuid>{9C4E2A17-5B8F-4D3E-A1C6-7F0B2E9D4183}</ProjectGuid>
     <OutputType>Library</OutputType>
     <RootNamespace>ScavengeTimerMod</RootNamespace>
-    <AssemblyName>Obenseuer-ScavengeTimer</AssemblyName>
+    <AssemblyName>Obenseuer-Scavenger</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <LangVersion>7.3</LangVersion>
@@ -74,7 +74,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="Plugin\ScavengeTimerPlugin.cs" />
+    <Compile Include="Plugin\ScavengerPlugin.cs" />
+    <Compile Include="Plugin\ScavengingSkill.cs" />
     <Compile Include="Plugin\ScavengeStorage.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
