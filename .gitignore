@@ -2,3 +2,6 @@ bin/
 obj/
 *.user
 .vs/
+release/stage/
+release/*.rar
+release/art/
