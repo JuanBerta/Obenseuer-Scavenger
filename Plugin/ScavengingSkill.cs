@@ -258,6 +258,7 @@ namespace ScavengeTimerMod
 		internal static class GameUI
 		{
 			private static readonly Dictionary<CharacterPanel, CharacterPanelSkill> cards = new Dictionary<CharacterPanel, CharacterPanelSkill>();
+			private static bool hidEmptyText;
 
 			// Add a Scavenging card from the game's skill prefab, after the game's own cards.
 			internal static void AddCard(CharacterPanel panel)
@@ -276,8 +277,24 @@ namespace ScavengeTimerMod
 			{
 				CharacterPanelSkill card;
 				if (panel == null || !cards.TryGetValue(panel, out card) || card == null) return;
-				card.gameObject.SetActive(Enabled.Value && Learned);   // hidden until learned, like the game's skills
-				if (!Enabled.Value || !Learned) return;
+				bool show = Enabled.Value && Learned;
+				card.gameObject.SetActive(show);   // hidden until learned, like the game's skills
+
+				// With no game skills learned yet, the game hides the whole list and shows "No learned skills".
+				// If Scavenging is learned, show the list (with just Scavenging) instead.
+				GameObject list = Traverse.Create(panel).Field("skillPanel").GetValue<GameObject>();
+				Component empty = Traverse.Create(panel).Field("emptyPanelText").GetValue<Component>();
+				if (show && list != null && !list.activeSelf)
+				{
+					list.SetActive(true);
+					if (empty != null && empty.gameObject.activeSelf) { empty.gameObject.SetActive(false); hidEmptyText = true; }
+				}
+				else if (!show && hidEmptyText && empty != null)
+				{
+					empty.gameObject.SetActive(true);   // only undo what the mod hid
+					hidEmptyText = false;
+				}
+				if (!show) return;
 				var skill = new PlayerStats.PlayerSkill { Type = PlayerStats.PlayerSkillType.None, Skill = SkillValue };
 				card.UpdateSkill(skill);
 				SetText(Traverse.Create(card).Field("title").GetValue<Component>(), "Scavenging");

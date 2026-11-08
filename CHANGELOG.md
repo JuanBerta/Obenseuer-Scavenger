@@ -1,5 +1,9 @@
 # Changelog - Scavenger (formerly Scavenge Timer)
 
+## 0.9.1
+- Fixed: a new game (or another character) inherited Scavenging XP from the previously played save. Each character now starts at 0, and saves without Scavenger data start at 0.
+- Fixed: with no game skills learned yet, the Character tab showed "No learned skills" and hid Scavenging.
+
 ## 0.9.0
 - Your state affects Scavenging like the game's own skills: being drunk gives up to +100% XP but lowers the Scavenger instinct chance; mushrooms change your effective level, with the game's formulas.
 - The Drinking skill shrinks the drunk instinct penalty (-8% per level, down to 20%).

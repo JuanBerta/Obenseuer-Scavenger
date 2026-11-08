@@ -21,6 +21,20 @@ namespace ScavengeTimerMod
 		// Trash containers already searched today ("|"-separated keys), so each gives XP once a day.
 		public string searchedToday = "";
 
+		// The character this XP belongs to, so a new game or another character never inherits it.
+		public string ownerCharacter = "";
+
+		// Set when this object's data was read from the current save (not saved).
+		[System.NonSerialized] public bool loadedFromSave;
+
+		public void ResetSkill(string owner)
+		{
+			skillXp = 0f;
+			searchedToday = "";
+			dayKey = "";
+			ownerCharacter = owner ?? "";
+		}
+
 		public void Setup()
 		{
 			GUID = StashGUID;
@@ -52,6 +66,9 @@ namespace ScavengeTimerMod
 			bool ok = SaveController.DeSerializeData(this, global);
 			storageSlots = new StorageSlot[0];
 			Slots = new SlotController[0];
+			// A save without Scavenger data (older save, or one from before the mod) starts the skill at 0.
+			if (!ok) ResetSkill(ScavengerPlugin.CurrentCharacter());
+			loadedFromSave = ok;
 			return ok;
 		}
 
