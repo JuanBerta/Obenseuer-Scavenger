@@ -2,18 +2,15 @@ using System;
 using BepInEx;
 using BepInEx.Configuration;
 using BepInEx.Unity.Mono;
-using BepInEx.Unity.Mono.Configuration;
 using HarmonyLib;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
 namespace ScavengeTimerMod
 {
-	[BepInPlugin("JuanBerta.Obenseuer.Scavenger", "Scavenger", "0.7.0")]
+	[BepInPlugin("JuanBerta.Obenseuer.Scavenger", "Scavenger", "0.8.0")]
 	public class ScavengerPlugin : BaseUnityPlugin
 	{
-		internal static ConfigEntry<KeyboardShortcut> StatusKey;
-
 		private static ScavengerPlugin instance;
 		private static ScavengeStorage save;
 		internal static ScavengeStorage Stash { get { return save; } }
@@ -21,8 +18,6 @@ namespace ScavengeTimerMod
 		private void Awake()
 		{
 			instance = this;
-			StatusKey = Config.Bind("General", "StatusKey", new KeyboardShortcut(KeyCode.F8),
-				"Shows your Scavenging level and XP.");
 			ScavengingSkill.Bind(Config);
 
 			SceneManager.sceneLoaded += OnSceneLoaded;
@@ -50,10 +45,6 @@ namespace ScavengeTimerMod
 		private void Update()
 		{
 			EnsureSaveObject();
-			if (StatusKey.Value.IsDown() && PlayerStats.instance != null)
-			{
-				Notify(ScavengingSkill.LongStatus());
-			}
 		}
 
 		// ---- Day and save ------------------------------------------------------------------
@@ -116,11 +107,11 @@ namespace ScavengeTimerMod
 			if (instance != null) instance.Logger.LogWarning(text);
 		}
 
-		internal static void Notify(string text)
+		internal static void Notify(string title, string text)
 		{
 			if (Notifications.instance != null)
 			{
-				Notifications.instance.CreateNotification("Scavenging", text);
+				Notifications.instance.CreateNotification(title, text);
 			}
 			else if (instance != null)
 			{
