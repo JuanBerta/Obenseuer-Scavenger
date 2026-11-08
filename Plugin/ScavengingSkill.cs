@@ -28,6 +28,7 @@ namespace ScavengeTimerMod
 		internal static ConfigEntry<string> TrashCategories;
 
 		private static HashSet<string> trashSet;
+		private static readonly HashSet<string> loggedCategories = new HashSet<string>();
 
 		internal static void Bind(ConfigFile cfg)
 		{
@@ -104,7 +105,10 @@ namespace ScavengeTimerMod
 		internal static void OnContainerOpened(Storage storage)
 		{
 			if (!Enabled.Value || storage == null || ScavengerPlugin.Stash == null) return;
-			if (Storage.currentStorage != storage || !IsTrash(storage.itemSpawnCategory)) return;
+			string cat = storage.itemSpawnCategory ?? "";
+			if (loggedCategories.Add(cat))
+				ScavengerPlugin.LogInfo("Opened a container with category '" + cat + "'" + (IsTrash(cat) ? " (trash: gives Scavenging XP)" : ""));
+			if (!IsTrash(cat)) return;
 			string key = string.IsNullOrEmpty(storage.GUID) ? storage.gameObject.scene.name + "@" + storage.transform.position.ToString("F1") : storage.GUID;
 			if (!ScavengerPlugin.Stash.MarkSearched(key)) return;   // already searched today
 
@@ -228,9 +232,10 @@ namespace ScavengeTimerMod
 				catch (Exception e) { ScavengerPlugin.LogWarning("Scavenging card: " + e.Message); }
 			}
 
-			[HarmonyPatch(typeof(Storage), nameof(Storage.Interact))]
+			// EnterExternally runs when a container's panel actually opens (after the lock check passes).
+			[HarmonyPatch(typeof(Storage), "EnterExternally")]
 			[HarmonyPostfix]
-			private static void Storage_Interact_Postfix(Storage __instance)
+			private static void Storage_EnterExternally_Postfix(Storage __instance)
 			{
 				try { OnContainerOpened(__instance); }
 				catch (Exception e) { ScavengerPlugin.LogWarning("Scavenging skill: " + e.Message); }

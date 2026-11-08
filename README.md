@@ -1,6 +1,6 @@
 # Obenseuer - Scavenger
 
-Version 0.8.1 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search the city's trash to level it up, and the higher your level, the more, and better, stuff you find in it.
+Version 0.8.2 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search the city's trash to level it up, and the higher your level, the more, and better, stuff you find in it.
 
 ## How it works
 
