@@ -58,20 +58,24 @@ namespace ScavengeTimerMod
 		internal const int MaxLevel = 10;          // same as the game's skills
 
 		// The skill on the game's scale: the whole part is the level, 1000 XP per level (1.562 = LVL 1, 1562 XP).
-		internal static float SkillValue { get { return Mathf.Min(MaxLevel, 1f + Xp / 1000f); } }
+		// Like the game's skills it starts at 0 (not learned, hidden) and becomes LVL 1 with the first XP.
+		internal static bool Learned { get { return Xp > 0f; } }
+		internal static float SkillValue { get { return Learned ? Mathf.Min(MaxLevel, 1f + Xp / 1000f) : 0f; } }
 
 		internal static int Level
 		{
-			get { return Enabled.Value ? Mathf.FloorToInt(SkillValue) : 1; }
+			get { return Enabled.Value ? Mathf.FloorToInt(SkillValue) : 0; }
 		}
 
 		internal static void AddXp(float amount)
 		{
 			if (!Enabled.Value || amount <= 0f || ScavengerPlugin.Stash == null || SkillValue >= MaxLevel) return;
+			bool wasLearned = Learned;
 			int before = Level;
 			Xp += amount * XpMultiplier.Value;
 			int after = Level;
-			if (after > before) GameUI.ShowLevelUp(after);
+			if (!wasLearned) GameUI.ShowNewSkill();
+			else if (after > before) GameUI.ShowLevelUp(after);
 			else if (ShowXpNotifications.Value) ScavengerPlugin.Notify("Skill increased!", "Scavenging");
 		}
 
@@ -159,12 +163,29 @@ namespace ScavengeTimerMod
 			{
 				CharacterPanelSkill card;
 				if (panel == null || !cards.TryGetValue(panel, out card) || card == null) return;
-				card.gameObject.SetActive(Enabled.Value);
-				if (!Enabled.Value) return;
+				card.gameObject.SetActive(Enabled.Value && Learned);   // hidden until learned, like the game's skills
+				if (!Enabled.Value || !Learned) return;
 				var skill = new PlayerStats.PlayerSkill { Type = PlayerStats.PlayerSkillType.None, Skill = SkillValue };
 				card.UpdateSkill(skill);
 				SetText(Traverse.Create(card).Field("title").GetValue<Component>(), "Scavenging");
 				card.transform.SetAsLastSibling();
+			}
+
+			internal static void ShowNewSkill()
+			{
+				if (!ShowPopup("New skill\nScavenging\nlearned!"))
+					ScavengerPlugin.Notify("New skill learned!", "Scavenging");
+			}
+
+			private static bool ShowPopup(string message)
+			{
+				try
+				{
+					if (PlayerSkillIncreaseUI.instance == null) return false;
+					Traverse.Create(PlayerSkillIncreaseUI.instance).Method("ShowNotification", new object[] { message }).GetValue();
+					return true;
+				}
+				catch (Exception) { return false; }
 			}
 
 			internal static void ShowLevelUp(int level)

@@ -1,11 +1,11 @@
 # Obenseuer - Scavenger
 
-Version 0.8.0 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search the city's trash to level it up, and the higher your level, the more, and better, stuff you find in it.
+Version 0.8.1 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search the city's trash to level it up, and the higher your level, the more, and better, stuff you find in it.
 
 ## How it works
 
 - Open a trash container (dumpster, trash bin, trash can, crate sack...) for the **first time in the in-game day** and you get Scavenging XP (20 by default). Each container gives XP once per day; at midnight they all count again.
-- **Scavenging appears on the Character tab** with the game's other skills: same card, level, XP and 10-segment bar. Like the game's skills, each level is 1000 XP, up to level 10.
+- Like the game's skills, Scavenging starts unlearned and hidden. The first trash container you search shows the game's "New skill learned!" popup, and **Scavenging appears on the Character tab** with the game's other skills: same card, level, XP and 10-segment bar. Each level is 1000 XP, up to level 10.
 - XP gains show the game's "Skill increased!" notification, and level-ups its "Scavenging increased to level N!" popup.
 - **Scavenger instinct**: every time you search a trash container for the first time that day, you have a chance to dig deeper and find extra items in it. The extra items appear right in the container you opened.
 
