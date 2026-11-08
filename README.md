@@ -1,6 +1,6 @@
 # Obenseuer - Scavenger
 
-Version 0.9.1 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search the city's trash to level it up, and the higher your level, the more, and better, stuff you find in it.
+Version 1.0.0 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search the city's trash to level it up, and the higher your level, the more, and better, stuff you find in it.
 
 ## How it works
 
@@ -8,6 +8,21 @@ Version 0.9.1 (formerly **Scavenge Timer**). Adds a **Scavenging skill**: search
 - Like the game's skills, Scavenging starts unlearned and hidden. The first trash container you search shows the game's "New skill learned!" popup, and **Scavenging appears on the Character tab** with the game's other skills: same card, level, XP and 10-segment bar. Each level is 1000 XP, up to level 10.
 - XP gains show the game's "Skill increased!" notification, and level-ups its "Scavenging increased to level N!" popup.
 - **Scavenger instinct**: every time you search a trash container for the first time that day, you have a chance to dig deeper and find extra items in it. The extra items appear right in the container you opened.
+
+## Gear and light
+
+- **Gear** raises the instinct chance while equipped or in your hand: Facemask or White Mask +3%, Gas Mask +6%, Crowbar +5% (`GearBonuses`).
+- **Darkness**: outdoors at night (21:00-06:00) without a light, the instinct chance is halved. A flashlight that is on, or the Hard Hat with Headlamp, counts as a light.
+
+## Level 10: Trash King
+
+At level 10, each first search of a trash container has a 10% chance of a rare-pool find, on top of instinct.
+
+## Daily progress and Loot Map
+
+The XP notification and the Scavenging card show how many trash containers you have searched today. With **Loot Map 0.4.0** installed, the map shows which trash you haven't searched today and has a "Trash route" filter for planning a daily round.
+
+For other mods: `ScavengeTimerMod.ScavengerApi` (IsTrash, SearchedAt, SearchedTodayCount, Level, TrashSearched event).
 
 ## Your state, like the game's skills
 
@@ -55,6 +70,11 @@ Config file: `BepInEx/config/JuanBerta.Obenseuer.Scavenger.cfg`
 | Instinct: ChanceAtLevel1 / ChancePerLevel | 0.05 / 0.05 | Chance of an extra find |
 | Instinct: RareChanceAtLevel1 / RareChancePerLevel | 0.2 / 0.04 | Rare-pool chance of extra finds |
 | Instinct: MultiAmountChanceAtLevel1 / MultiAmountChancePerLevel | 0.2 / 0.03 | Chance an extra find is a stack |
+| Skill: ShowDailyCount | true | Trash searched today in the XP notification and on the card |
+| Gear: GearAffectsInstinct / GearBonuses | true / Facemask:0.03,White Mask:0.03,Gas Mask:0.06,Crowbar:0.05 | Gear bonuses to the instinct chance |
+| Gear: DarknessAffectsInstinct / DarkInstinctFactor | true / 0.5 | Searching in the dark without a light |
+| Gear: NightStartHour / NightEndHour / DarknessOnlyOutdoors | 21 / 6 / true | When and where it's dark |
+| Perk: TrashKing / TrashKingChance | true / 0.1 | Level 10 perk |
 | State: StateAffectsSkill | true | Alcohol and mushrooms affect the skill |
 | State: MaxDrunkXpBonus | 1 | Extra XP when drunk (1 = up to +100%) |
 | State: DrunkLowersInstinct | true | Being drunk lowers the instinct chance |

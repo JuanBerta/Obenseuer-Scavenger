@@ -32,46 +32,84 @@ namespace ScavengeTimerMod
 		internal static ConfigEntry<bool> MushroomsAffectLevel;
 		internal static ConfigEntry<bool> DrinkingSkillHelps;
 		internal static ConfigEntry<bool> ContainerDifficulty;
+		internal static ConfigEntry<bool> ShowDailyCount;
+		internal static ConfigEntry<bool> GearAffectsInstinct;
+		internal static ConfigEntry<string> GearBonuses;
+		internal static ConfigEntry<bool> DarknessAffectsInstinct;
+		internal static ConfigEntry<int> NightStartHour;
+		internal static ConfigEntry<int> NightEndHour;
+		internal static ConfigEntry<float> DarkInstinctFactor;
+		internal static ConfigEntry<bool> DarknessOnlyOutdoors;
+		internal static ConfigEntry<bool> TrashKing;
+		internal static ConfigEntry<float> TrashKingChance;
+		private static Dictionary<string, float> gear;
 		internal static ConfigEntry<string> DifficultyFactors;
 		private static Dictionary<string, float> difficulty;
 
 		private static HashSet<string> trashSet;
 		private static readonly HashSet<string> loggedCategories = new HashSet<string>();
 
+		private static ConfigDescription D(string text, int order, AcceptableValueBase range = null, bool advanced = false)
+		{
+			return new ConfigDescription(text, range, new ConfigurationManagerAttributes { Order = order, IsAdvanced = advanced });
+		}
+
 		internal static void Bind(ConfigFile cfg)
 		{
-			Enabled = cfg.Bind("Skill", "Enabled", true, "Enable the Scavenging skill.");
-			XpPerTrashContainer = cfg.Bind("Skill", "XpPerTrashContainer", 20f, "XP the first time each day you open a trash container (dumpster, trash bin...). Like the game's skills, a level is 1000 XP, up to level 10.");
-			XpMultiplier = cfg.Bind("Skill", "XpMultiplier", 1f, new ConfigDescription("Multiplies all Scavenging XP.", new AcceptableValueRange<float>(0.1f, 10f)));
-			ShowXpNotifications = cfg.Bind("Skill", "ShowXpNotifications", true, "Show the game's \"Skill increased!\" notification each time you gain Scavenging XP.");
-			ProcBase = cfg.Bind("Instinct", "ChanceAtLevel1", 0.05f, "Chance at level 1 to find something extra when you search a trash container.");
-			ProcPerLevel = cfg.Bind("Instinct", "ChancePerLevel", 0.05f, "Added to the chance per level above 1 (capped at 60%).");
-			RareBase = cfg.Bind("Instinct", "RareChanceAtLevel1", 0.2f, "Chance at level 1 that an extra find comes from the container's rare pool.");
-			RarePerLevel = cfg.Bind("Instinct", "RareChancePerLevel", 0.04f, "Added to the rare chance per level above 1 (capped at 75%).");
-			MultiBase = cfg.Bind("Instinct", "MultiAmountChanceAtLevel1", 0.2f, "Chance at level 1 that an extra find is several of the same item.");
-			MultiPerLevel = cfg.Bind("Instinct", "MultiAmountChancePerLevel", 0.03f, "Added to the multi-amount chance per level above 1 (capped at 80%).");
+			// Skill
+			Enabled = cfg.Bind("Skill", "Enabled", true, D("Turn the Scavenging skill on or off.", 100));
+			XpPerTrashContainer = cfg.Bind("Skill", "XpPerTrashContainer", 20f, D("XP for each trash container you open for the first time in the in-game day. Like the game's skills, a level is 1000 XP, up to level 10.", 90, new AcceptableValueRange<float>(1f, 500f)));
+			XpMultiplier = cfg.Bind("Skill", "XpMultiplier", 1f, D("Multiplies all Scavenging XP. Raise it for a faster grind.", 80, new AcceptableValueRange<float>(0.1f, 10f)));
+			ShowXpNotifications = cfg.Bind("Skill", "ShowXpNotifications", true, D("Show the game's \"Skill increased!\" notification each time you gain Scavenging XP.", 70));
+			ShowDailyCount = cfg.Bind("Skill", "ShowDailyCount", true, D("Show how many trash containers you have searched today, in the XP notification and on the Scavenging card.", 60));
 			TrashCategories = cfg.Bind("Skill", "TrashCategories",
 				"Dumpster,TrashBin,Trashcan,Trash,Trash Machineshop,Trash Organic,TrashBale,CrateSack,CrateSackMines",
-				"Container spawn categories that count as trash.");
+				D("Container spawn categories that count as trash, comma separated.", 10, null, true));
 			TrashCategories.SettingChanged += (s, e) => trashSet = null;
 
+			// Instinct
+			ProcBase = cfg.Bind("Instinct", "ChanceAtLevel1", 0.05f, D("Chance at level 1 to find something extra (Scavenger instinct) when you search a trash container.", 100, new AcceptableValueRange<float>(0f, 1f)));
+			ProcPerLevel = cfg.Bind("Instinct", "ChancePerLevel", 0.05f, D("Added to the instinct chance per level above 1 (capped at 60%, plus gear).", 90, new AcceptableValueRange<float>(0f, 0.5f)));
+			RareBase = cfg.Bind("Instinct", "RareChanceAtLevel1", 0.2f, D("Chance at level 1 that an extra find comes from the container's rare pool.", 80, new AcceptableValueRange<float>(0f, 1f)));
+			RarePerLevel = cfg.Bind("Instinct", "RareChancePerLevel", 0.04f, D("Added to the rare chance per level above 1 (capped at 75%).", 70, new AcceptableValueRange<float>(0f, 0.5f)));
+			MultiBase = cfg.Bind("Instinct", "MultiAmountChanceAtLevel1", 0.2f, D("Chance at level 1 that an extra find is several of the same item.", 60, new AcceptableValueRange<float>(0f, 1f)));
+			MultiPerLevel = cfg.Bind("Instinct", "MultiAmountChancePerLevel", 0.03f, D("Added to the multi-amount chance per level above 1 (capped at 80%).", 50, new AcceptableValueRange<float>(0f, 0.5f)));
+
+			// Gear and light
+			GearAffectsInstinct = cfg.Bind("Gear", "GearAffectsInstinct", true, D("Equipped gear raises the instinct chance (see GearBonuses).", 100));
+			GearBonuses = cfg.Bind("Gear", "GearBonuses", "Facemask:0.03,White Mask:0.03,Gas Mask:0.06,Crowbar:0.05",
+				D("Item name:bonus pairs. The bonus is added to the instinct chance while the item is equipped or in your hand.", 90));
+			GearBonuses.SettingChanged += (s, e) => gear = null;
+			DarknessAffectsInstinct = cfg.Bind("Gear", "DarknessAffectsInstinct", true, D("Searching trash at night without a light (a flashlight that is on, or the Hard Hat with Headlamp) lowers the instinct chance.", 80));
+			DarkInstinctFactor = cfg.Bind("Gear", "DarkInstinctFactor", 0.5f, D("Instinct chance multiplier when searching in the dark (0.5 = half).", 70, new AcceptableValueRange<float>(0f, 1f)));
+			NightStartHour = cfg.Bind("Gear", "NightStartHour", 21, D("Hour when it gets dark.", 60, new AcceptableValueRange<int>(0, 23)));
+			NightEndHour = cfg.Bind("Gear", "NightEndHour", 6, D("Hour when it gets light.", 50, new AcceptableValueRange<int>(0, 23)));
+			DarknessOnlyOutdoors = cfg.Bind("Gear", "DarknessOnlyOutdoors", true, D("Only count darkness outdoors (buildings have their own lights).", 40));
+
+			// State
 			StateAffectsSkill = cfg.Bind("State", "StateAffectsSkill", true,
-				"Your state affects Scavenging the way it affects the game's own skills: alcohol and mushrooms. Hunger, thirst, sleep and health don't, as in the game.");
-			MaxDrunkXpBonus = cfg.Bind("State", "MaxDrunkXpBonus", 1f, new ConfigDescription(
+				D("Your state affects Scavenging the way it affects the game's own skills: alcohol and mushrooms. Hunger, thirst, sleep and health don't, as in the game.", 100));
+			MaxDrunkXpBonus = cfg.Bind("State", "MaxDrunkXpBonus", 1f, D(
 				"Extra XP when drunk, scaled by alcohol in blood (1 = up to +100% when completely drunk). In the game, alcohol raises the fail chance, and a higher fail chance gives more skill XP.",
-				new AcceptableValueRange<float>(0f, 3f)));
+				90, new AcceptableValueRange<float>(0f, 3f)));
 			DrunkLowersInstinct = cfg.Bind("State", "DrunkLowersInstinct", true,
-				"Being drunk lowers the Scavenger instinct chance (you miss things), like alcohol lowers the game's success chances.");
+				D("Being drunk lowers the instinct chance (you miss things), like alcohol lowers the game's success chances.", 80));
 			DrinkingSkillHelps = cfg.Bind("State", "DrinkingSkillHelps", true,
-				"Your Drinking skill makes the drunk instinct penalty smaller: -8% per Drinking level, down to 20% of the penalty (same numbers the game uses for how much a drink affects you).");
+				D("Your Drinking skill makes the drunk instinct penalty smaller: -8% per Drinking level, down to 20% of the penalty (the game's own numbers for how much a drink affects you).", 70));
 			MushroomsAffectLevel = cfg.Bind("State", "MushroomsAffectLevel", true,
-				"Mushroom effects change your effective Scavenging level for instinct, using the game's own formula for skills.");
+				D("Mushroom effects change your effective Scavenging level for instinct, using the game's own formula for skills.", 60));
+
+			// Difficulty
 			ContainerDifficulty = cfg.Bind("Difficulty", "ContainerDifficulty", true,
-				"Bigger or messier trash gives more XP, smaller trash less (see DifficultyFactors).");
+				D("Bigger or messier trash gives more XP, smaller trash less (see DifficultyFactors).", 100));
 			DifficultyFactors = cfg.Bind("Difficulty", "DifficultyFactors",
 				"Dumpster:1.25,TrashBale:1.25,Trash Machineshop:1.25,CrateSackMines:1.25,CrateSack:1,TrashBin:1,Trash:1,Trashcan:0.75,Trash Organic:0.75",
-				"XP multiplier per container category, as Category:factor pairs. Categories not listed use 1.");
+				D("XP multiplier per container category, as Category:factor pairs. Categories not listed use 1.", 90));
 			DifficultyFactors.SettingChanged += (s, e) => difficulty = null;
+
+			// Level 10 perk
+			TrashKing = cfg.Bind("Perk", "TrashKing", true, D("Level 10 perk: every first search of a trash container has a chance of an extra rare-pool find, on top of instinct.", 100));
+			TrashKingChance = cfg.Bind("Perk", "TrashKingChance", 0.1f, D("Chance of the Trash King find.", 90, new AcceptableValueRange<float>(0f, 1f)));
 		}
 
 		// ---- XP and levels --------------------------------------------------------------------
@@ -179,13 +217,74 @@ namespace ScavengeTimerMod
 		// ---- Level bonuses (Scavenger instinct), from the effective level ------------------------------
 
 		private static float Above1 { get { return Mathf.Max(0f, EffectiveLevel - 1f); } }
-		internal static float ProcChance
+		// Instinct chance for a container in this scene: level, gear, darkness and alcohol.
+		internal static float InstinctChance(string scene)
 		{
-			get
+			float chance = Mathf.Clamp(ProcBase.Value + ProcPerLevel.Value * Above1, 0f, 0.6f) + GearBonus();
+			if (IsDark(scene)) chance *= DarkInstinctFactor.Value;
+			if (DrunkLowersInstinct.Value) chance *= InstinctSober;
+			return Mathf.Clamp(chance, 0f, 0.75f);
+		}
+
+		// ---- Gear and light ------------------------------------------------------------------
+
+		private static IEnumerable<string> EquippedItemNames()
+		{
+			var inv = Inventory.instance;
+			if (inv == null || inv.CharacterSlots == null) yield break;
+			foreach (var sc in inv.CharacterSlots)
 			{
-				float chance = Mathf.Clamp(ProcBase.Value + ProcPerLevel.Value * Above1, 0f, 0.6f);
-				return DrunkLowersInstinct.Value ? chance * InstinctSober : chance;
+				if (sc == null || sc.itemStack == null || sc.itemStack.itemId < 0 || sc.itemStack.itemAmount <= 0) continue;
+				Item item = ItemDatabase.instance != null ? ItemDatabase.instance.FetchItemByID(sc.itemStack.itemId) : null;
+				if (item != null && !string.IsNullOrEmpty(item.Title)) yield return item.Title;
 			}
+		}
+
+		internal static float GearBonus()
+		{
+			if (!GearAffectsInstinct.Value) return 0f;
+			if (gear == null)
+			{
+				gear = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase);
+				foreach (string pair in GearBonuses.Value.Split(','))
+				{
+					int i = pair.LastIndexOf(':'); float f;
+					if (i > 0 && float.TryParse(pair.Substring(i + 1).Trim(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out f))
+						gear[pair.Substring(0, i).Trim()] = f;
+				}
+			}
+			float total = 0f; float v;
+			try { foreach (string name in EquippedItemNames()) if (gear.TryGetValue(name, out v)) total += v; }
+			catch (Exception) { }
+			return total;
+		}
+
+		internal static bool HasLight()
+		{
+			try
+			{
+				foreach (var f in UnityEngine.Object.FindObjectsByType<WieldableItem.Flashlight>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+					if (f != null && f.isActiveAndEnabled && Traverse.Create(f).Field("on").GetValue<bool>()) return true;
+				foreach (string name in EquippedItemNames())
+					if (name.IndexOf("Headlamp", StringComparison.OrdinalIgnoreCase) >= 0) return true;
+			}
+			catch (Exception) { }
+			return false;
+		}
+
+		internal static bool IsNight()
+		{
+			if (TimeOfDayAzure.instance == null || TimeOfDayAzure.instance.currentTimeAndDay == null) return false;
+			float h = TimeOfDayAzure.instance.currentTimeAndDay.hours;
+			int start = NightStartHour.Value, end = NightEndHour.Value;
+			return start > end ? (h >= start || h < end) : (h >= start && h < end);
+		}
+
+		internal static bool IsDark(string scene)
+		{
+			if (!DarknessAffectsInstinct.Value || !IsNight()) return false;
+			if (DarknessOnlyOutdoors.Value && (scene == null || !scene.StartsWith("Open Sewer"))) return false;
+			return !HasLight();
 		}
 		internal static float RareChance { get { return Mathf.Clamp(RareBase.Value + RarePerLevel.Value * Above1, 0f, 0.75f); } }
 		internal static float MultiChance { get { return Mathf.Clamp(MultiBase.Value + MultiPerLevel.Value * Above1, 0f, 0.8f); } }
@@ -212,17 +311,42 @@ namespace ScavengeTimerMod
 			if (loggedCategories.Add(cat))
 				ScavengerPlugin.LogInfo("Opened a container with category '" + cat + "'" + (IsTrash(cat) ? " (trash: gives Scavenging XP)" : ""));
 			if (!IsTrash(cat)) return;
-			string key = string.IsNullOrEmpty(storage.GUID) ? storage.gameObject.scene.name + "@" + storage.transform.position.ToString("F1") : storage.GUID;
-			if (!ScavengerPlugin.Stash.MarkSearched(key)) return;   // already searched today
+			string sceneName = storage.gameObject.scene.name;
+			Vector3 pos = storage.transform.position;
+			if (!ScavengerPlugin.Stash.MarkSearched(sceneName, pos)) return;   // already searched today
+			ScavengerApi.RaiseTrashSearched(sceneName, pos);
 
 			bool high = StateAffectsSkill.Value && MushroomsAffectLevel.Value && Mathf.Abs(EffectiveLevel - Level) >= 0.5f;
-			if (UnityEngine.Random.value < ProcChance) Instinct(storage, high);
+			string scene = storage.gameObject.scene.name;
+			bool dark = IsDark(scene);
+			if (UnityEngine.Random.value < InstinctChance(scene)) Instinct(storage, high);
+			if (TrashKing.Value && Level >= MaxLevel && UnityEngine.Random.value < TrashKingChance.Value) TrashKingFind(storage);
 
 			float diff = DifficultyFactor(cat), drunk = DrunkXpMultiplier;
 			var notes = new List<string>();
 			if (Mathf.Abs(diff - 1f) > 0.01f) notes.Add((diff > 1f ? "+" : "") + Mathf.RoundToInt((diff - 1f) * 100f) + "% " + cat.ToLowerInvariant());
 			if (drunk > 1.01f) notes.Add("drunk +" + Mathf.RoundToInt((drunk - 1f) * 100f) + "%");
+			if (dark) notes.Add("too dark to see much");
+			if (ShowDailyCount.Value) notes.Add(ScavengerPlugin.Stash.SearchedCount + " today");
 			AddXp(XpPerTrashContainer.Value * diff * drunk, string.Join(", ", notes.ToArray()));
+		}
+
+		// Level 10 perk: a guaranteed rare-pool find on top of instinct.
+		private static void TrashKingFind(Storage storage)
+		{
+			if (StorageSpawnCategoryDatabase.instance == null) return;
+			StorageSpawnCategory cat = StorageSpawnCategoryDatabase.instance.FetchStorageSpawnCategory(storage.itemSpawnCategory);
+			if (cat == null || (cat.ItemRare.Count == 0 && cat.ItemCommon.Count == 0)) return;
+			Item item = cat.GetRandomItem(cat.ItemRare.Count > 0 ? 1f : 0f);
+			if (item == null) return;
+			if (storage.AddItemAndReturnRemaining(item, 1, -1, null) >= 1) return;
+			try
+			{
+				if (Inventory.instance != null && Inventory.instance.storagePanelUI != null)
+					Inventory.instance.storagePanelUI.UpdateStoragePanelUI(storage);
+			}
+			catch (Exception) { }
+			ScavengerPlugin.Notify("Trash King!", "Your trained eye spots: " + item.Title);
 		}
 
 		private static void Instinct(Storage storage, bool affectedByMushrooms)
@@ -298,6 +422,11 @@ namespace ScavengeTimerMod
 				var skill = new PlayerStats.PlayerSkill { Type = PlayerStats.PlayerSkillType.None, Skill = SkillValue };
 				card.UpdateSkill(skill);
 				SetText(Traverse.Create(card).Field("title").GetValue<Component>(), "Scavenging");
+				if (ShowDailyCount.Value && ScavengerPlugin.Stash != null)
+				{
+					Component xp = Traverse.Create(card).Field("xp").GetValue<Component>();
+					SetText(xp, Mathf.FloorToInt(SkillValue * 1000f) + " XP · " + ScavengerPlugin.Stash.SearchedCount + " today");
+				}
 				card.transform.SetAsLastSibling();
 			}
 

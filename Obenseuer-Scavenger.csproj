@@ -72,6 +72,8 @@
   <ItemGroup>
     <Compile Include="Plugin\ScavengerPlugin.cs" />
     <Compile Include="Plugin\ScavengingSkill.cs" />
+    <Compile Include="Plugin\ScavengerApi.cs" />
+    <Compile Include="Plugin\ConfigurationManagerAttributes.cs" />
     <Compile Include="Plugin\ScavengeStorage.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>

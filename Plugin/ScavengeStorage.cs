@@ -68,19 +68,55 @@ namespace ScavengeTimerMod
 			Slots = new SlotController[0];
 			// A save without Scavenger data (older save, or one from before the mod) starts the skill at 0.
 			if (!ok) ResetSkill(ScavengerPlugin.CurrentCharacter());
-			loadedFromSave = ok;
+			loadedFromSave = true;   // the data in memory now belongs to this save (even if it had no Scavenger data)
 			return ok;
 		}
 
-		public bool MarkSearched(string key)
+		// Searched containers are stored as "scene@x,y,z" (positions are stable across sessions; some
+		// containers are spawned at runtime with a new GUID each time, so GUIDs can't be used).
+		private System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, Vector3>> parsed;
+		private string parsedFrom;
+
+		private System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, Vector3>> Searched()
 		{
-			string token = "|" + key + "|";
-			if (searchedToday.Contains(token)) return false;
+			if (parsed != null && parsedFrom == searchedToday) return parsed;
+			parsed = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, Vector3>>();
+			parsedFrom = searchedToday;
+			foreach (string token in searchedToday.Split('|'))
+			{
+				int at = token.LastIndexOf('@');
+				if (at <= 0) continue;
+				string[] c = token.Substring(at + 1).Split(',');
+				float x, y, z;
+				var inv = System.Globalization.CultureInfo.InvariantCulture; var f = System.Globalization.NumberStyles.Float;
+				if (c.Length == 3 && float.TryParse(c[0], f, inv, out x) && float.TryParse(c[1], f, inv, out y) && float.TryParse(c[2], f, inv, out z))
+					parsed.Add(new System.Collections.Generic.KeyValuePair<string, Vector3>(token.Substring(0, at), new Vector3(x, y, z)));
+			}
+			return parsed;
+		}
+
+		public bool WasSearched(string scene, Vector3 pos)
+		{
+			foreach (var kv in Searched())
+				if (kv.Key == scene && (kv.Value - pos).sqrMagnitude < 0.75f * 0.75f) return true;
+			return false;
+		}
+
+		// Returns false if this container was already searched today.
+		public bool MarkSearched(string scene, Vector3 pos)
+		{
+			if (WasSearched(scene, pos)) return false;
 			if (searchedToday.Length > 60000) searchedToday = "";
+			var inv = System.Globalization.CultureInfo.InvariantCulture;
+			string key = scene + "@" + pos.x.ToString("F2", inv) + "," + pos.y.ToString("F2", inv) + "," + pos.z.ToString("F2", inv);
 			searchedToday = (searchedToday.Length == 0 ? "|" : searchedToday) + key + "|";
 			return true;
 		}
 
+		public int SearchedCount { get { return Searched().Count; } }
+
 		public void ClearSearched() { searchedToday = ""; }
+
+
 	}
 }

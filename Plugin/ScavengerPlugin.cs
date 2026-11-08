@@ -8,7 +8,7 @@ using UnityEngine.SceneManagement;
 
 namespace ScavengeTimerMod
 {
-	[BepInPlugin("JuanBerta.Obenseuer.Scavenger", "Scavenger", "0.9.1")]
+	[BepInPlugin("JuanBerta.Obenseuer.Scavenger", "Scavenger", "1.0.0")]
 	public class ScavengerPlugin : BaseUnityPlugin
 	{
 		private static ScavengerPlugin instance;
@@ -54,11 +54,20 @@ namespace ScavengeTimerMod
 			}
 		}
 
-		// The game's current character (Saves/<Character>/<Save>), or null outside a game.
+		// The game's current character, or null outside a game. The game keeps it either as a plain name
+		// ("Mike_Gray") or as a full path (".../Saves/Mike_Gray"); only the last folder name is used.
 		internal static string CurrentCharacter()
 		{
-			try { return Traverse.Create(typeof(SaveController)).Field("CharacterName").GetValue<string>(); }
+			try { return NormalizeCharacter(Traverse.Create(typeof(SaveController)).Field("CharacterName").GetValue<string>()); }
 			catch (Exception) { return null; }
+		}
+
+		internal static string NormalizeCharacter(string name)
+		{
+			if (string.IsNullOrEmpty(name)) return name;
+			name = name.Replace('\\', '/').TrimEnd('/');
+			int slash = name.LastIndexOf('/');
+			return slash >= 0 ? name.Substring(slash + 1) : name;
 		}
 
 		private static bool GameIsLoading()
@@ -71,14 +80,21 @@ namespace ScavengeTimerMod
 		// When the character in play isn't the one this data belongs to, start the skill from 0.
 		private static void CheckOwner()
 		{
-			if (save == null || PlayerStats.instance == null || GameIsLoading()) return;
-			string current = CurrentCharacter();
-			if (string.IsNullOrEmpty(current) || save.ownerCharacter == current) return;
-			if (string.IsNullOrEmpty(save.ownerCharacter) && save.loadedFromSave)
+			if (save == null) return;
+			if (PlayerStats.instance == null || SceneManager.GetActiveScene().name == "Main Menu")
 			{
-				save.ownerCharacter = current;   // data saved before this check existed, read from this character's save
+				save.loadedFromSave = false;   // in the main menu: whatever is in memory belongs to the last game
 				return;
 			}
+			if (GameIsLoading()) return;
+			string current = CurrentCharacter();
+			if (string.IsNullOrEmpty(current) || NormalizeCharacter(save.ownerCharacter) == current) return;
+			if (save.loadedFromSave)
+			{
+				save.ownerCharacter = current;   // data read from this save belongs to this save
+				return;
+			}
+			// Playing without having loaded anything (a new game) while the previous game's data is in memory.
 			save.ResetSkill(current);
 			save.dayKey = CurrentDayKey();
 			if (instance != null) instance.Logger.LogInfo("New character '" + current + "': Scavenging starts at 0.");

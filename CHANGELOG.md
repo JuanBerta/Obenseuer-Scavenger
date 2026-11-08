@@ -1,5 +1,15 @@
 # Changelog - Scavenger (formerly Scavenge Timer)
 
+## 1.0.0
+- Gear: a Facemask or White Mask (+3%), a Gas Mask (+6%) or a Crowbar in hand (+5%) raises the Scavenger instinct chance.
+- Darkness: searching trash outdoors at night (21:00-06:00) without a light halves the instinct chance. A flashlight that is on, or the Hard Hat with Headlamp, counts as a light.
+- Trash King (level 10 perk): each first search of a trash container has a 10% chance of a rare-pool find, on top of instinct.
+- Daily progress: the XP notification and the Scavenging card show how many trash containers you searched today.
+- Settings are ordered and described for ConfigurationManager.
+- Loot Map support: the map can show which trash you haven't searched today (needs Loot Map 0.4.0).
+- Fixed: searched containers are tracked by position, so containers the game spawns at runtime are remembered and can't give XP twice after a reload.
+- Fixed: loading a save could reset the skill (the game sometimes stores the character as a full path).
+
 ## 0.9.1
 - Fixed: a new game (or another character) inherited Scavenging XP from the previously played save. Each character now starts at 0, and saves without Scavenger data start at 0.
 - Fixed: with no game skills learned yet, the Character tab showed "No learned skills" and hid Scavenging.
